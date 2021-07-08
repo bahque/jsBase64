@@ -1,7 +1,7 @@
 /**
  a simple, non idiomatic implementation of base64, written to learn
  simple constructs and types, and because all the implementations I
- saw were not stand-alone, or I did not liked them enough
+ saw were not stand-alone, or I did not like them enough
 */
 
 const textDecoder = new TextDecoder("utf-8"), textEncoder = new TextEncoder("utf-8");
