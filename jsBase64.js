@@ -2,16 +2,23 @@
  a simple, non idiomatic implementation of base64, written to learn
  simple constructs and types, and because all the implementations I
  saw were not stand-alone, or I did not like them enough
-*/
+--
 
-const jsBase64 = (function() {
-    const textDecoder = new TextDecoder("utf-8"), textEncoder = new TextEncoder("utf-8");
+ here I conceed that my implementation is not needed and about 20%
+ slower of btoa/atob with the other bits taken from mdn/dom-examples/
+ ... import export -key/pkcs8.js; therefore it will be ignored and so
+ labelled
+
+*/
+    // utf-8 code points <--> bytes
+    export const textDecoder = new TextDecoder("utf-8"), textEncoder = new TextEncoder("utf-8");
+
     const pcp = 64, pcv = 61; // padding character position and value
     const sta = new Uint8Array(65), ats = new Uint8Array(256); // sextuplets <--> ascii codes
-    let urlSafe = false; // rfc4648#section-5 "-_", or standard "+/"
-    const plus = urlSafe ? 45 : 43, slash = urlSafe ? 95 : 47;
     
-    (function() { // setup alphabets
+    export const setupAplhabets = (urlSafe) => {
+        // urlSafe: rfc4648#section-5 "-_", or standard "+/"
+        const plus = urlSafe ? 45 : 43, slash = urlSafe ? 95 : 47;
         for (let i = 65; i < 91; i++) { // A..Z
             sta[i - 65] = i;
             ats[i] = i - 65;
@@ -27,33 +34,40 @@ const jsBase64 = (function() {
         sta[62] = plus; sta[63] = slash; // - _ =
         ats[plus] = 62; ats[slash] = 63;
         sta[pcp] = pcv;
+    }
+
+    (function foo() { // default is to use standard "+/"
+        setupAplhabets(false);
     })()
-    
-    const bta = function(bs) { // Uint8Array binary to ascii
-        if (bs.length === 0) return "";
+
+    export const bta = (bs) => {
+        if (bs instanceof ArrayBuffer)
+            bs = new Uint8Array(bs);
+        if (bs.length === 0)
+            return "";
         const ss = new Uint8Array(4 * Math.ceil(bs.length / 3)); // sextuplets
         const lenM3 = bs.length - 3;
         let i = 0, j = 0;
         for (; i <= lenM3; i += 3) {
             const b1 = bs[i], b2 = bs[i + 1], b3 = bs[i + 2];
-            ss[j++] =                     b1 >> 2;
-            ss[j++] = ((b1 &  3) << 4) + (b2 >> 4);
+            ss[j++] = b1 >> 2;
+            ss[j++] = ((b1 & 3) << 4) + (b2 >> 4);
             ss[j++] = ((b2 & 15) << 2) + (b3 >> 6);
-            ss[j++] =   b3 & 63;
+            ss[j++] = b3 & 63;
         }
         if (i != bs.length) {
             let b1 = bs[i];
             ss[j++] = b1 >> 2;
-            switch(bs.length - i) {
-            case 1:
-                ss[j++] = (b1 & 3) << 4;
-                ss[j++] = pcp;
-                break;
-            case 2:
-                const b2 = bs[i + 1];
-                ss[j++] = ((b1 &  3) << 4) + (b2 >> 4);
-                ss[j++] =  (b2 & 15) << 2;
-                break;
+            switch (bs.length - i) {
+                case 1:
+                    ss[j++] = (b1 & 3) << 4;
+                    ss[j++] = pcp;
+                    break;
+                case 2:
+                    const b2 = bs[i + 1];
+                    ss[j++] = ((b1 & 3) << 4) + (b2 >> 4);
+                    ss[j++] = (b2 & 15) << 2;
+                    break;
             }
             ss[j++] = pcp;
         }
@@ -62,8 +76,9 @@ const jsBase64 = (function() {
         return textDecoder.decode(ss); // then to string
     }
     
-    const atb = function(s64) { // ascii to Uint8Array binary
-        if (s64.length === 0) return new Uint8Array(0);
+    export const atb = (s64) => {
+        if (s64.length === 0)
+            return new Uint8Array(0);
         const as = textEncoder.encode(s64); // ascii codes
         let len = as.length;
         while (pcv === as[--len]) // remove trailing '='
@@ -79,36 +94,48 @@ const jsBase64 = (function() {
         let i = 0, j = 0;
         for (; i <= lenM4; i += 4) {
             const s2 = ss[i + 1], s3 = ss[i + 2];
-            bs[j++] = (ss[i]     << 2) + (s2 >> 4);
+            bs[j++] = (ss[i] << 2) + (s2 >> 4);
             bs[j++] = ((s2 & 15) << 4) + (s3 >> 2);
-            bs[j++] = ((s3 & 3)  << 6) + ss[i + 3];
+            bs[j++] = ((s3 & 3) << 6) + ss[i + 3];
         }
         if (i != ss.length) {
             switch (ss.length - i) {
-            case 1:
-                throw new Error("" + ss.length + " sextets in the input are not enough to specify the last byte");
-                break;
-            case 2:
-                bs[j++] = (ss[i]     << 2) + (ss[i + 1] >> 4);
-                break;
-            case 3:
-                const s2 = ss[i + 1];
-                bs[j++] = (ss[i]     << 2) + (s2        >> 4);
-                bs[j++] = ((s2 & 15) << 4) + (ss[i + 2] >> 2);
-                break;
+                case 1:
+                    throw new Error("" + ss.length + " sextets in the input are not enough to specify the last byte");
+                    break;
+                case 2:
+                    bs[j++] = (ss[i] << 2) + (ss[i + 1] >> 4);
+                    break;
+                case 3:
+                    const s2 = ss[i + 1];
+                    bs[j++] = (ss[i] << 2) + (s2 >> 4);
+                    bs[j++] = ((s2 & 15) << 4) + (ss[i + 2] >> 2);
+                    break;
             }
         }
         return bs;
     }
 
-    return {
-        bta: bta,
-        atb: atb
-    }
-})();
+
+// taken from mdn/dom-examples/ ... import export -key/pkcs8.js
+function b2a(buf) {
+    return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+}
+
+function a2b(str) {
+    str = atob(str);
+    const bufView = new Uint8Array(new ArrayBuffer(str.length));
+    for (let i = 0, strLen = str.length; i < strLen; i++)
+        bufView[i] = str.charCodeAt(i);
+    return bufView;
+}
+
+const a2b = base64 => {
+    return Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+}
 
 
-function test() {
+export function test() {
     function equals(bs1, bs2) {
         if (bs1.length == bs2.length) {
             for (let i = 0; i < bs1.length; i++)
@@ -119,20 +146,37 @@ function test() {
         return false;
     }
     
-    const b64 = jsBase64;
-
-    for (let  j = 0; j < 100; j++)
-        for (let i = 0; i < 100; i++) {
-            bs = new Uint8Array(i);
-            crypto.getRandomValues(bs);
-            const s = b64.bta(bs);
-            console.log(s);
-            const uus = b64.atb(s);
-            if (! equals(bs, uus))
-                throw new Error("bug for input " + bs);
-        }
+    const mine = {
+        name: 'mine',
+        enc: bta,
+        dec: atb,
+    };
+    const nih = {
+        name: 'nih',
+        enc: b2a,
+        dec: a2b,
+    };
+    
+    function compare(fc) {
+        let pn = performance.now();
+        for (let  j = 0; j < 100; j++)
+            for (let i = 1; i < 100; i++) {
+                const bs = new Uint8Array(i);
+                crypto.getRandomValues(bs);
+                const s = fc.enc(bs);
+                //console.log(s);
+                const uus = fc.dec(s);
+                if (! equals(bs, uus))
+                    throw new Error(`{fc.name}: bug for input {bs}`);
+            }
+        pn = performance.now() - pn;
+        console.log(`${fc.name}: ${pn} millis`);
+    }
+    
+    compare(mine);
+    compare(nih); // 20% faster, wow! - I conceed
 }
 
 //test();
 
-// $Id: jsBase64.js 288 2021-07-09 11:22:25Z abo $ EditCount 256
+// $Id: jsBase64.mjs 340 2023-03-19 15:35:04Z abo $ EditCount 278
